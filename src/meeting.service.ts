@@ -24,44 +24,58 @@ import {
   Outgoing,
   Peer,
   ReqMethod,
-  ResponseMsg,
+  ResponseMsg
 } from './api'
 import { TaskQueue } from './task.queue'
 import { makeKurento } from './kurento.client'
 import { Session } from './session'
 
-const isDefined = <T> (x: T | undefined | null): x is T => x !== undefined && x !== null
+const isDefined = <T>(x: T | undefined | null): x is T =>
+  x !== undefined && x !== null
 
 interface Room {
-  pipeline: MediaPipeline
-  peers: Set<Peer['internalID']>
-  screenSession?: Session
+  pipeline: MediaPipeline;
+  peers: Set<Peer['internalID']>;
+  screenSession?: Session;
 }
 export default class {
-  private nextID = 0
-  private readonly kurento: ReturnType<typeof makeKurento>
+  private nextID = 0;
+  private readonly kurento: ReturnType<typeof makeKurento>;
 
-  private readonly rooms: Map<string, Room> = new Map()
+  private readonly rooms: Map<string, Room> = new Map();
 
-  private readonly peers: Map<Peer['internalID'], {peer: Peer, session: Session, roomID: string}> = new Map()
-  private readonly actionQueue = new TaskQueue()
+  private readonly peers: Map<
+    Peer['internalID'],
+    { peer: Peer; session: Session; roomID: string }
+  > = new Map();
 
-  private closed = false
+  private readonly actionQueue = new TaskQueue();
 
-  constructor(kmsURL: string) {
+  private closed = false;
+
+  constructor (kmsURL: string) {
     this.kurento = makeKurento(kmsURL)
   }
 
-  private readonly forEachSession = (fn: (s: Session) => void, peers: Peer[]): void =>
+  private readonly forEachSession = (
+    fn: (s: Session) => void,
+    peers: Peer[]
+  ): void =>
     peers
-      .map(x => this.peers.get(x.internalID))
+      .map((x) => this.peers.get(x.internalID))
       .filter(isDefined)
-      .map(x => x.session)
-      .forEach(fn)
+      .map((x) => x.session)
+      .forEach(fn);
 
-  private async join (peer: Peer, roomID: string, send: (msg: Outgoing) => void): Promise<Room> {
+  private async join (
+    peer: Peer,
+    roomID: string,
+    send: (msg: Outgoing) => void
+  ): Promise<Room> {
     const room = this.rooms.get(roomID) ?? {
-      pipeline: await this.kurento.then(async (c) => await c.create('MediaPipeline')),
+      pipeline: await this.kurento.then(
+        async (c) => await c.create('MediaPipeline')
+      ),
       peers: new Set()
     }
 
@@ -72,17 +86,16 @@ export default class {
     this.peers.set(peer.internalID, { session, roomID, peer })
 
     this.forEachSession(
-      (s) => s.send({
-        result: {
-          notification: NotificationMethod.PeerJoined,
-          params: {
-            peer
+      (s) =>
+        s.send({
+          result: {
+            notification: NotificationMethod.PeerJoined,
+            params: {
+              peer
+            }
           }
-        }
-      }),
-      [...room.peers]
-        .map(x => this.peers.get(x)?.peer)
-        .filter(isDefined)
+        }),
+      [...room.peers].map((x) => this.peers.get(x)?.peer).filter(isDefined)
     )
 
     room.peers.add(peer.internalID)
@@ -90,7 +103,10 @@ export default class {
     return room
   }
 
-  private async initScreenSharing (id: Peer['internalID'], send: (msg: Outgoing) => void): Promise<string> {
+  private async initScreenSharing (
+    id: Peer['internalID'],
+    send: (msg: Outgoing) => void
+  ): Promise<string> {
     const roomID = this.peers.get(id)?.roomID ?? ''
     const room = this.rooms.get(roomID)
 
@@ -108,18 +124,19 @@ export default class {
     room.screenSession = session
 
     this.forEachSession(
-      (s) => s.send({
-        result: {
-          notification: NotificationMethod.ScreenSharingStarted,
-          params: {
-            peerID: sessionID,
-            owner: id
+      (s) =>
+        s.send({
+          result: {
+            notification: NotificationMethod.ScreenSharingStarted,
+            params: {
+              peerID: sessionID,
+              owner: id
+            }
           }
-        }
-      }),
+        }),
       [...room.peers]
-        .filter(x => x !== id)
-        .map(x => this.peers.get(x)?.peer)
+        .filter((x) => x !== id)
+        .map((x) => this.peers.get(x)?.peer)
         .filter(isDefined)
     )
 
@@ -146,7 +163,8 @@ export default class {
 
     this.forEachSession(
       (s) => {
-        room.screenSession !== undefined && s.cancelVideoTransmission(room.screenSession.name)
+        room.screenSession !== undefined &&
+          s.cancelVideoTransmission(room.screenSession.name)
         s.send({
           result: {
             notification: NotificationMethod.ScreenSharingFinished
@@ -154,8 +172,8 @@ export default class {
         })
       },
       [...room.peers]
-        .filter(x => x !== id)
-        .map(x => this.peers.get(x)?.peer)
+        .filter((x) => x !== id)
+        .map((x) => this.peers.get(x)?.peer)
         .filter(isDefined)
     )
 
@@ -168,14 +186,19 @@ export default class {
       return
     }
 
-    const roomEntry = [...this.rooms.entries()].find(([, x]) => x.peers.has(id))
+    const roomEntry = [...this.rooms.entries()].find(([, x]) =>
+      x.peers.has(id)
+    )
     if (roomEntry === undefined) {
       return
     }
 
     const [roomID, room] = roomEntry
 
-    if (room.screenSession !== undefined && getScreenOwner(room.screenSession.name) === id) {
+    if (
+      room.screenSession !== undefined &&
+      getScreenOwner(room.screenSession.name) === id
+    ) {
       await this.stopScreenSharing(id)
     }
 
@@ -191,27 +214,26 @@ export default class {
       return
     }
 
-    this.forEachSession(
-      (s) => {
-        s.send({
-          result: {
-            notification: NotificationMethod.PeerLeft,
-            params: {
-              peerID: id
-            }
+    this.forEachSession((s) => {
+      s.send({
+        result: {
+          notification: NotificationMethod.PeerLeft,
+          params: {
+            peerID: id
           }
-        })
+        }
+      })
 
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        s.cancelVideoTransmission(id)
-      },
-      [...room.peers]
-        .map(x => this.peers.get(x)?.peer)
-        .filter(isDefined)
-    )
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      s.cancelVideoTransmission(id)
+    }, [...room.peers].map((x) => this.peers.get(x)?.peer).filter(isDefined))
   }
 
-  private async peerUpdated (updatedPeer: Partial<Omit<Peer, 'internalID'>> & {internalID: Peer['internalID']}): Promise<Peer> {
+  private async peerUpdated (
+    updatedPeer: Partial<Omit<Peer, 'internalID'>> & {
+      internalID: Peer['internalID'];
+    }
+  ): Promise<Peer> {
     const peer = this.peers.get(updatedPeer.internalID)
     const room = this.rooms.get(peer?.roomID ?? '')
 
@@ -230,17 +252,16 @@ export default class {
     })
 
     this.forEachSession(
-      (s) => s.send({
-        result: {
-          notification: NotificationMethod.PeerUpdated,
-          params: {
-            peer: actualPeer
+      (s) =>
+        s.send({
+          result: {
+            notification: NotificationMethod.PeerUpdated,
+            params: {
+              peer: actualPeer
+            }
           }
-        }
-      }),
-      [...room.peers]
-        .map(x => this.peers.get(x)?.peer)
-        .filter(isDefined)
+        }),
+      [...room.peers].map((x) => this.peers.get(x)?.peer).filter(isDefined)
     )
 
     return actualPeer
@@ -250,8 +271,9 @@ export default class {
     this.closed = true
 
     await Promise.all(
-      [...this.rooms.values()]
-        .flatMap(room => [...room.peers].map(async (x) => await this.leave(x)))
+      [...this.rooms.values()].flatMap((room) =>
+        [...room.peers].map(async (x) => await this.leave(x))
+      )
     )
 
     this.peers.clear()
@@ -265,12 +287,10 @@ export default class {
     return `${this.nextID++}`
   }
 
-  onNewClient (
-    send: (msg: any) => void
-  ): {
-      onWSMsg: (msg: Incoming) => Promise<ResponseMsg['result']>
-      onClose: () => Promise<void>
-    } {
+  onNewClient (send: (msg: any) => void): {
+    onWSMsg: (msg: Incoming) => Promise<ResponseMsg['result']>;
+    onClose: () => Promise<void>;
+  } {
     const internalID = this.getID()
 
     return {
@@ -284,41 +304,46 @@ export default class {
 
         if (msg.method === ReqMethod.Join) {
           if (session !== undefined) {
-            throw Error(`Already joined to the room: ${internalPeer?.roomID ?? ''}`)
+            throw Error(
+              `Already joined to the room: ${internalPeer?.roomID ?? ''}`
+            )
           }
 
           const roomID = msg.params[0].room
 
-          const room = await this.actionQueue
-            .add(async () => await this.join(
-              {
-                internalID,
-                ...msg.params[0].peer
-              },
-              roomID,
-              send)
-            )
+          const room = await this.actionQueue.add(
+            async () =>
+              await this.join(
+                {
+                  internalID,
+                  ...msg.params[0].peer
+                },
+                roomID,
+                send
+              )
+          )
 
           return {
             peers: [...room.peers]
-              .filter(x => x !== internalID)
-              .map(x => this.peers.get(x)?.peer)
+              .filter((x) => x !== internalID)
+              .map((x) => this.peers.get(x)?.peer)
               .filter(isDefined),
             me: {
               internalID,
               camEnabled: msg.params[0].peer.camEnabled,
               muted: msg.params[0].peer.muted
             },
-            screen: (room.screenSession !== undefined)
-              ? {
-                peer: {
-                  internalID: room.screenSession.name,
-                  muted: true,
-                  camEnabled: true
-                },
-                owner: getScreenOwner(room.screenSession.name)
-              }
-              : undefined
+            screen:
+              room.screenSession !== undefined
+                ? {
+                    peer: {
+                      internalID: room.screenSession.name,
+                      muted: true,
+                      camEnabled: true
+                    },
+                    owner: getScreenOwner(room.screenSession.name)
+                  }
+                : undefined
           }
         }
 
@@ -327,8 +352,9 @@ export default class {
         }
 
         if (msg.method === ReqMethod.InitScreenSharing) {
-          const peerID = await this.actionQueue
-            .add(async () => await this.initScreenSharing(internalID, send))
+          const peerID = await this.actionQueue.add(
+            async () => await this.initScreenSharing(internalID, send)
+          )
 
           return {
             peerID
@@ -336,25 +362,35 @@ export default class {
         }
 
         if (msg.method === ReqMethod.StopScreenSharing) {
-          await this.actionQueue
-            .add(async () => await this.stopScreenSharing(internalID))
+          await this.actionQueue.add(
+            async () => await this.stopScreenSharing(internalID)
+          )
 
           return true
         }
 
         if (msg.method === NotificationMethod.ICECandidate) {
-          const isScreenOwner = makeScreenID(internalID) === msg.params[0].peerID
+          const isScreenOwner =
+            makeScreenID(internalID) === msg.params[0].peerID
 
           if (isScreenOwner) {
-            const screenSession = this.rooms.get(this.peers.get(internalID)?.roomID ?? '')?.screenSession
+            const screenSession = this.rooms.get(
+              this.peers.get(internalID)?.roomID ?? ''
+            )?.screenSession
 
             if (screenSession === undefined) {
               throw Error('Screen session is missing')
             }
 
-            await screenSession.addICECandidate(msg.params[0].candidate, msg.params[0].peerID)
+            await screenSession.addICECandidate(
+              msg.params[0].candidate,
+              msg.params[0].peerID
+            )
           } else {
-            await session.addICECandidate(msg.params[0].candidate, msg.params[0].peerID)
+            await session.addICECandidate(
+              msg.params[0].candidate,
+              msg.params[0].peerID
+            )
           }
 
           return
@@ -380,11 +416,15 @@ export default class {
             throw Error('Missing session')
           }
 
-          const srcSession = makeScreenID(internalID) === msg.params[0].peerID
-            ? targetSession
-            : session
+          const srcSession =
+            makeScreenID(internalID) === msg.params[0].peerID
+              ? targetSession
+              : session
 
-          const sdp = await srcSession.initVideoTransmission(targetSession, msg.params[0].sdp)
+          const sdp = await srcSession.initVideoTransmission(
+            targetSession,
+            msg.params[0].sdp
+          )
           return {
             sdp
           }
@@ -397,14 +437,14 @@ export default class {
           }
 
           return {
-            peer: await this.actionQueue
-              .add(async () => await this.peerUpdated(updatedPeer))
+            peer: await this.actionQueue.add(
+              async () => await this.peerUpdated(updatedPeer)
+            )
           }
         }
 
         if (msg.method === ReqMethod.Leave) {
-          await this.actionQueue
-            .add(async () => await this.leave(internalID))
+          await this.actionQueue.add(async () => await this.leave(internalID))
 
           return true
         }
@@ -412,8 +452,7 @@ export default class {
         throw Error('Unknown rpc method')
       },
       onClose: async () => {
-        await this.actionQueue
-          .add(async () => await this.leave(internalID))
+        await this.actionQueue.add(async () => await this.leave(internalID))
       }
     }
   }

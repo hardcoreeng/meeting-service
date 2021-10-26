@@ -1,0 +1,31 @@
+version: "3.2"
+
+services:
+  meeting-server:
+    image: hardcoreeng/meeting-service
+    ports:
+      - 18081:18081      
+    links:
+      - kms
+    environment:
+      - WEB_HOST=${WEB_HOST} # Should be
+      - SERVER_PORT=18081
+      - SERVER_SECRET=${SERVER_SECRET}
+      - SECURITY_CERT_FILE=/etc/letsencrypt/live/${WEB_HOST}/cert.pem
+      - SECURITY_KEY_FILE=/etc/letsencrypt/live/${WEB_HOST}/privkey.pem
+      - SECURITY_CA_FILE=/etc/letsencrypt/live/${WEB_HOST}/chain.pem
+      - KMS_URL=ws://kms:8888/kurento
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt
+  kms:
+    image: kurento/kurento-media-server:6
+    volumes:
+      - type: bind
+        source: ./kurento
+        target: /etc/kurento
+    ports:
+      - 5000-5500:5000-5500
+    expose:
+      - 8888
+    restart: unless-stopped
+

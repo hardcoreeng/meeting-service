@@ -15,8 +15,10 @@
 
 import { start } from './server'
 
+import { config } from './config'
+
 // eslint-disable-next-line @typescript-eslint/no-floating-promises
-start(process.env.HOST ?? 'localhost', Number(process.env.PORT), process.env.KMS_URL ?? 'ws://localhost:8888/kurento')
+start(config)
   .then(proto => {
     console.log('Server has been started')
 

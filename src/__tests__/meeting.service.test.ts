@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+
 const kurentoMock = {
   create: jest.fn().mockResolvedValue(undefined),
   close: jest.fn().mockResolvedValue(undefined)
