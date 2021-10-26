@@ -2,3 +2,5 @@ lib
 node_modules
 coverage
 yarn-error.log
+dist/meeting-service.js
+distribution/cert

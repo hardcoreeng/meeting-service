@@ -39,7 +39,7 @@ interface Status {
   }
 }
 
-export function unknownError(err: Error): Status {
+export function unknownError (err: Error): Status {
   return {
     severity: 'ERROR',
     code: 'UnknownError',
